@@ -232,6 +232,7 @@ def google_login():
             'status': 'success', 
             'data': user_data,
             'user_info': {
+                'id': user_id,
                 'name': id_info.get('name'),
                 'picture': id_info.get('picture'),
                 'email': email
@@ -264,19 +265,105 @@ def sync_user_data():
         return jsonify({'error': str(e)}), 500
 
 # Socket.IO Events for Listen Along
+party_rooms = {}
+
+def emit_users(room):
+    if room in party_rooms:
+        users_list = []
+        host_sid = party_rooms[room]['host']
+        host_id = party_rooms[room]['users'].get(host_sid, {}).get('id')
+        
+        for sid, u in party_rooms[room]['users'].items():
+            users_list.append({
+                'id': u['id'],
+                'name': u['name'],
+                'avatar': u['avatar'],
+                'isHost': (sid == host_sid)
+            })
+        emit('party_users', {'users': users_list, 'hostId': host_id}, room=room)
+
 @socketio.on('join_party')
 def on_join(data):
     room = data['room']
     username = data.get('username', 'Guest')
+    user_id = data.get('userId')
+    avatar = data.get('avatar')
+    
     join_room(room)
+    
+    if room not in party_rooms:
+        party_rooms[room] = {'host': request.sid, 'users': {}}
+    
+    party_rooms[room]['users'][request.sid] = {
+        'id': user_id,
+        'name': username,
+        'avatar': avatar
+    }
+    
     emit('party_notification', {'msg': f'{username} joined the party!'}, room=room)
+    emit_users(room)
 
 @socketio.on('leave_party')
 def on_leave(data):
     room = data['room']
     username = data.get('username', 'Guest')
     leave_room(room)
+    
+    if room in party_rooms and request.sid in party_rooms[room]['users']:
+        del party_rooms[room]['users'][request.sid]
+        if party_rooms[room]['host'] == request.sid:
+            if party_rooms[room]['users']:
+                party_rooms[room]['host'] = next(iter(party_rooms[room]['users']))
+            else:
+                del party_rooms[room]
+    
     emit('party_notification', {'msg': f'{username} left the party.'}, room=room)
+    emit_users(room)
+
+@socketio.on('kick_user')
+def on_kick(data):
+    room = data.get('room')
+    target_id = data.get('targetId')
+    
+    if room in party_rooms and party_rooms[room]['host'] == request.sid:
+        target_sid = None
+        target_name = "User"
+        for sid, user in party_rooms[room]['users'].items():
+            if user['id'] == target_id:
+                target_sid = sid
+                target_name = user['name']
+                break
+        
+        if target_sid:
+            try:
+                leave_room(room, sid=target_sid)
+            except: pass
+            
+            del party_rooms[room]['users'][target_sid]
+            emit('kicked', room=target_sid)
+            emit('party_notification', {'msg': f'{target_name} was kicked.'}, room=room)
+            emit_users(room)
+
+@socketio.on('disconnect')
+def on_disconnect():
+    rooms_to_clean = []
+    for room_id, room_data in party_rooms.items():
+        if request.sid in room_data['users']:
+            user = room_data['users'][request.sid]
+            del room_data['users'][request.sid]
+            
+            if room_data['host'] == request.sid:
+                if room_data['users']:
+                    room_data['host'] = next(iter(room_data['users']))
+                else:
+                    rooms_to_clean.append(room_id)
+            
+            emit('party_notification', {'msg': f"{user['name']} disconnected."}, room=room_id)
+            emit_users(room_id)
+            break
+    
+    for r in rooms_to_clean:
+        if r in party_rooms: del party_rooms[r]
 
 @socketio.on('party_action')
 def on_party_action(data):

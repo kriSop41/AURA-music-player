@@ -36,7 +36,7 @@ class AuthManager {
         if (this.user) return; // Don't render if already logged in
 
         // Safety check: If ID is still the placeholder, don't try to render
-        if (!this.clientId || this.clientId.includes('PASTE_YOUR_CLIENT_ID')) {
+        if (!this.clientId || this.clientId.includes('469577212141-5pqcscb2r8jrthnp15sv9o216sdcrrjg.apps.googleusercontent.com')) {
             return;
         }
 

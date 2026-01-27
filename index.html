@@ -142,6 +142,7 @@
                         <h2 id="room-code-display" style="font-size: 50px; color: var(--p); letter-spacing: 10px; margin: 20px 0; font-family:monospace; font-weight:bold"></h2>
                         <p style="margin-bottom:30px">Share this code with your friends.</p>
                         <button onclick="partyManager.leave()" style="background:rgba(255,50,50,0.1); color:#ff4444; border:1px solid rgba(255,50,50,0.2); padding:10px 30px; border-radius:20px; cursor:pointer; font-weight:600">Leave Party</button>
+                        <div id="party-users-list" style="margin-top: 20px; width: 100%; max-height: 150px; overflow-y: auto;"></div>
                         
                         <div id="party-chat-container" style="margin-top: 30px; border-top: 1px solid var(--border); padding-top: 20px; width: 100%;">
                             <h3 style="margin-bottom: 15px; font-size: 18px;">Party Chat</h3>
@@ -336,6 +337,24 @@
                 this.socket = null;
                 this.room = null;
                 this.typingTimeout = null;
+                this.userId = 'guest_' + Math.random().toString(36).substr(2, 9);
+                this.users = [];
+                this.hostId = null;
+            }
+
+            getUserInfo() {
+                if (window.authManager && window.authManager.user && window.authManager.user.info) {
+                    return {
+                        name: window.authManager.user.info.name,
+                        id: window.authManager.user.info.id,
+                        avatar: window.authManager.user.info.picture
+                    };
+                }
+                return {
+                    name: document.getElementById('display-name').innerText,
+                    id: this.userId,
+                    avatar: null
+                };
             }
             
             connect() {
@@ -348,6 +367,15 @@
                 
                 this.socket.on('party_update', (data) => {
                     this.handleUpdate(data);
+                });
+                this.socket.on('party_users', (data) => {
+                    this.users = data.users;
+                    this.hostId = data.hostId;
+                    this.renderUsers();
+                });
+                this.socket.on('kicked', () => {
+                    this.leave();
+                    showModal({type:'alert', title:'Kicked', message:'You have been kicked from the party.'});
                 });
                 this.socket.on('connect', () => {
                     console.log("Socket connected!");
@@ -374,8 +402,8 @@
             join(room) {
                 this.connect();
                 this.room = room;
-                const name = document.getElementById('display-name').innerText;
-                this.socket.emit('join_party', { room, username: name });
+                const user = this.getUserInfo();
+                this.socket.emit('join_party', { room, username: user.name, userId: user.id, avatar: user.avatar });
                 this.updateUI(true);
                 // Sync current queue to new room if I am starting it
                 if(masterQueue.length > 0) this.broadcast('syncQueue', { queue: masterQueue });
@@ -391,6 +419,11 @@
                 this.socket.emit('leave_party', { room: this.room, username: name });
                 this.room = null;
                 this.updateUI(false);
+            }
+
+            kickUser(id) {
+                if(!this.room) return;
+                this.socket.emit('kick_user', { room: this.room, targetId: id });
             }
             
             broadcast(action, payload) {
@@ -422,8 +455,8 @@
                 const msg = input.value.trim();
                 if(!msg || !this.room) return;
                 
-                const name = document.getElementById('display-name').innerText;
-                this.socket.emit('party_chat', { room: this.room, username: name, message: msg });
+                const user = this.getUserInfo();
+                this.socket.emit('party_chat', { room: this.room, username: user.name, userId: user.id, avatar: user.avatar, message: msg });
                 input.value = '';
             }
 
@@ -432,7 +465,8 @@
                 if (!container) return;
 
                 const div = document.createElement('div');
-                const isMe = data.username === document.getElementById('display-name').innerText;
+                const user = this.getUserInfo();
+                const isMe = data.userId === user.id;
                 
                 const isChatVisible = !document.getElementById('listen-along-view').classList.contains('hidden');
                 if (!isMe && (document.hidden || !isChatVisible) && "Notification" in window && Notification.permission === "granted") {
@@ -455,7 +489,13 @@
                 nameDiv.style.opacity = '0.7';
                 nameDiv.style.marginBottom = '2px';
                 nameDiv.style.fontWeight = 'bold';
-                nameDiv.textContent = data.username;
+                if (data.avatar) {
+                    const img = document.createElement('img');
+                    img.src = data.avatar;
+                    img.style.cssText = "width:16px; height:16px; border-radius:50%; vertical-align:middle; margin-right:5px";
+                    nameDiv.appendChild(img);
+                }
+                nameDiv.appendChild(document.createTextNode(data.username));
 
                 const msgDiv = document.createElement('div');
                 msgDiv.style.fontSize = '14px';
@@ -467,6 +507,44 @@
                 
                 container.appendChild(div);
                 container.scrollTop = container.scrollHeight;
+            }
+
+            renderUsers() {
+                const container = document.getElementById('party-users-list');
+                if(!container) return;
+                container.innerHTML = '';
+                
+                const myId = this.getUserInfo().id;
+                const amIHost = (this.hostId === myId);
+                
+                this.users.forEach(u => {
+                    const div = document.createElement('div');
+                    div.style.cssText = "display:flex; align-items:center; gap:10px; padding:8px; background:rgba(255,255,255,0.05); border-radius:8px; margin-bottom:5px";
+                    
+                    const avatar = document.createElement('img');
+                    avatar.src = u.avatar || 'https://via.placeholder.com/30';
+                    avatar.style.cssText = "width:30px; height:30px; border-radius:50%";
+                    
+                    const name = document.createElement('span');
+                    name.innerText = u.name + (u.isHost ? ' (Host)' : '');
+                    name.style.flex = "1";
+                    name.style.fontSize = "14px";
+                    
+                    div.appendChild(avatar);
+                    div.appendChild(name);
+                    
+                    if(amIHost && u.id !== myId) {
+                        const kickBtn = document.createElement('button');
+                        kickBtn.innerHTML = '<i data-lucide="user-x" style="width:16px"></i>';
+                        kickBtn.style.cssText = "background:rgba(255,50,50,0.1); color:#ff4444; border:none; padding:5px; border-radius:5px; cursor:pointer";
+                        kickBtn.onclick = () => this.kickUser(u.id);
+                        kickBtn.title = "Kick User";
+                        div.appendChild(kickBtn);
+                    }
+                    
+                    container.appendChild(div);
+                });
+                lucide.createIcons();
             }
 
             handleUpdate(data) {
