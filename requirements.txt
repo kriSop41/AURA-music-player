@@ -1,5 +1,0 @@
-Flask
-requests
-ytmusicapi
-flask-cors
-gunicorn
