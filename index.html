@@ -380,8 +380,8 @@
                 this.socket.on('connect', () => {
                     console.log("Socket connected!");
                     if(this.room) {
-                        const name = document.getElementById('display-name').innerText;
-                        this.socket.emit('join_party', { room: this.room, username: name });
+                        const user = this.getUserInfo();
+                        this.socket.emit('join_party', { room: this.room, username: user.name, userId: user.id, avatar: user.avatar });
                     }
                 });
                 this.socket.on('party_chat', (data) => this.handleChat(data));

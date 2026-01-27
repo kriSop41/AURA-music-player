@@ -375,7 +375,7 @@ def on_party_action(data):
 def on_party_chat(data):
     room = data.get('room')
     if room:
-        emit('party_chat', data, room=room, include_self=True)
+        socketio.emit('party_chat', data, room=room)
 
 @socketio.on('typing')
 def on_typing(data):
