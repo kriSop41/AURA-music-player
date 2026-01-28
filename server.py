@@ -413,16 +413,21 @@ def on_party_action(data):
     is_host = request.sid == room_data['host']
     state = room_data['state']
 
-    # --- Host-only playback controls ---
-    if action_type in ['play_song', 'play', 'pause', 'seek']:
+    print(f"Party Action: {action_type} | Room: {room} | User: {request.sid} | IsHost: {is_host}")
+
+    # Create a payload for broadcasting. Start with the original data.
+    broadcast_data = data.copy()
+
+    # --- Playback Controls ---
+    # We allow 'play_song' for everyone (Collaborative Mode) so guests can change tracks.
+    # We restrict 'play', 'pause', 'seek' to Host to prevent fighting over the scrubber.
+    if action_type in ['play', 'pause', 'seek']:
         if not is_host:
+            print(f"Blocked non-host action: {action_type}")
             return # Ignore action from non-host
 
-        # Create a payload for broadcasting. Start with the original data from the host.
-        broadcast_data = data.copy()
-
-        # Update the server's authoritative state based on the host's action
-        if action_type == 'play_song':
+    # Update the server's authoritative state based on the action
+    if action_type == 'play_song':
             song_data = data.get('song')
             state['song'] = song_data
             state['time'] = 0
@@ -437,22 +442,23 @@ def on_party_action(data):
                 }
                 socketio.emit('party_chat', chat_message, room=room)
 
-            # The original 'data' is sufficient for this action.
-        elif action_type == 'play':
+    elif action_type == 'play':
             state['isPlaying'] = True
             if 'time' in data: state['time'] = data['time'] # Host's time is source of truth
             # Always include the server's authoritative time in the broadcast.
             broadcast_data['time'] = state['time']
-        elif action_type == 'pause':
+    elif action_type == 'pause':
             state['isPlaying'] = False
             if 'time' in data: state['time'] = data['time']
             # Always include the server's authoritative time in the broadcast.
             broadcast_data['time'] = state['time']
-        elif action_type == 'seek':
+    elif action_type == 'seek':
             if 'time' in data: state['time'] = data['time']
             # The original 'data' is sufficient as 'seek' must include time.
         
-        # Broadcast the host's action to all other clients in the room
+    # Broadcast the action to all other clients in the room
+    if action_type in ['play_song', 'play', 'pause', 'seek']:
+        print(f"Broadcasting {action_type} to room {room}")
         emit('party_update', broadcast_data, room=room, include_self=False)
 
     # --- Queue management (anyone can do) ---
@@ -474,6 +480,12 @@ def on_party_action(data):
         if isinstance(new_queue, list):
             state['queue'] = new_queue
             emit('party_update', data, room=room, include_self=False)
+
+@socketio.on('get_party_state')
+def on_get_state():
+    room = sid_to_room.get(request.sid)
+    if room and room in party_rooms:
+        emit('party_state_update', party_rooms[room]['state'], room=request.sid)
 
 @socketio.on('party_chat')
 def on_party_chat(data):
