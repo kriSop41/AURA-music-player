@@ -398,10 +398,15 @@ def on_disconnect():
 
 @socketio.on('party_action')
 def on_party_action(data):
-    room = str(data.get('room')).strip().lower()
+    # Robustly determine the room: prefer server-side state, fallback to payload
+    room = sid_to_room.get(request.sid)
+    if not room and data.get('room'):
+        room = str(data.get('room')).strip().lower()
+
     action_type = data.get('type')
 
     if not room or not action_type or room not in party_rooms:
+        print(f"Ignored Action: {action_type} | Room: {room} | SID: {request.sid}")
         return
 
     room_data = party_rooms[room]
@@ -461,16 +466,20 @@ def on_party_action(data):
 
 @socketio.on('party_chat')
 def on_party_chat(data):
-    room = data.get('room')
+    room = sid_to_room.get(request.sid)
+    if not room and data.get('room'):
+        room = str(data.get('room')).strip().lower()
+        
     if room:
-        room = str(room).strip().lower()
         socketio.emit('party_chat', data, room=room)
 
 @socketio.on('typing')
 def on_typing(data):
-    room = data.get('room')
+    room = sid_to_room.get(request.sid)
+    if not room and data.get('room'):
+        room = str(data.get('room')).strip().lower()
+        
     if room:
-        room = str(room).strip().lower()
         emit('typing', data, room=room, include_self=False)
 
 if __name__ == '__main__':
