@@ -300,7 +300,8 @@ def emit_users(room):
 
 @socketio.on('join_party')
 def on_join(data):
-    room = str(data['room']).strip()
+    room = str(data['room']).strip().lower()
+    print(f"Join Party: {room} | User: {data.get('username')} | PID: {os.getpid()}")
     username = data.get('username', 'Guest')
     user_id = data.get('userId')
     avatar = data.get('avatar')
@@ -310,6 +311,7 @@ def on_join(data):
     
     if room not in party_rooms:
         # First user to join creates the party, becomes host, and defines the initial state
+        print(f"Creating new party room: {room} on PID {os.getpid()}")
         party_rooms[room] = {
             'host': request.sid, 
             'users': {},
@@ -331,7 +333,7 @@ def on_join(data):
 
 @socketio.on('leave_party')
 def on_leave(data):
-    room = str(data['room']).strip()
+    room = str(data['room']).strip().lower()
     username = data.get('username', 'Guest')
     leave_room(room)
     sid_to_room.pop(request.sid, None)
@@ -350,7 +352,7 @@ def on_leave(data):
 @socketio.on('kick_user')
 def on_kick(data):
     room = data.get('room')
-    if room: room = str(room).strip()
+    if room: room = str(room).strip().lower()
     target_id = data.get('targetId')
     
     if room in party_rooms and party_rooms[room]['host'] == request.sid:
@@ -396,7 +398,7 @@ def on_disconnect():
 
 @socketio.on('party_action')
 def on_party_action(data):
-    room = str(data.get('room')).strip()
+    room = str(data.get('room')).strip().lower()
     action_type = data.get('type')
 
     if not room or not action_type or room not in party_rooms:
@@ -452,14 +454,14 @@ def on_party_action(data):
 def on_party_chat(data):
     room = data.get('room')
     if room:
-        room = str(room).strip()
+        room = str(room).strip().lower()
         socketio.emit('party_chat', data, room=room)
 
 @socketio.on('typing')
 def on_typing(data):
     room = data.get('room')
     if room:
-        room = str(room).strip()
+        room = str(room).strip().lower()
         emit('typing', data, room=room, include_self=False)
 
 if __name__ == '__main__':
