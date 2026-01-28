@@ -417,6 +417,7 @@ def on_party_action(data):
 
     # Create a payload for broadcasting. Start with the original data.
     broadcast_data = data.copy()
+    broadcast_data['senderSid'] = request.sid
 
     # --- Playback Controls ---
     # We allow 'play_song' for everyone (Collaborative Mode) so guests can change tracks.
@@ -459,7 +460,7 @@ def on_party_action(data):
     # Broadcast the action to all other clients in the room
     if action_type in ['play_song', 'play', 'pause', 'seek']:
         print(f"Broadcasting {action_type} to room {room}")
-        socketio.emit('party_update', broadcast_data, room=room, skip_sid=request.sid)
+        socketio.emit('party_update', broadcast_data, room=room)
 
     # --- Queue management (anyone can do) ---
     elif action_type == 'add_to_queue':
@@ -467,19 +468,22 @@ def on_party_action(data):
         if song_to_add and song_to_add.get('id') not in [s['id'] for s in state['queue']]:
             state['queue'].append(song_to_add)
             # Broadcast the "add" action so all clients can update their queue UI
+            data['senderSid'] = request.sid
             socketio.emit('party_update', data, room=room)
     
     elif action_type == 'remove_from_queue':
         song_id_to_remove = data.get('songId')
         if song_id_to_remove:
             state['queue'] = [s for s in state['queue'] if s['id'] != song_id_to_remove]
+            data['senderSid'] = request.sid
             socketio.emit('party_update', data, room=room)
 
     elif action_type == 'update_queue': # For drag-and-drop reordering
         new_queue = data.get('queue')
         if isinstance(new_queue, list):
             state['queue'] = new_queue
-            socketio.emit('party_update', data, room=room, skip_sid=request.sid)
+            data['senderSid'] = request.sid
+            socketio.emit('party_update', data, room=room)
 
 @socketio.on('get_party_state')
 def on_get_state():
