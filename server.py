@@ -413,22 +413,31 @@ def on_party_action(data):
         if not is_host:
             return # Ignore action from non-host
 
+        # Create a payload for broadcasting. Start with the original data from the host.
+        broadcast_data = data.copy()
+
         # Update the server's authoritative state based on the host's action
         if action_type == 'play_song':
             state['song'] = data.get('song')
             state['time'] = 0
             state['isPlaying'] = True
+            # The original 'data' is sufficient for this action.
         elif action_type == 'play':
             state['isPlaying'] = True
             if 'time' in data: state['time'] = data['time'] # Host's time is source of truth
+            # Always include the server's authoritative time in the broadcast.
+            broadcast_data['time'] = state['time']
         elif action_type == 'pause':
             state['isPlaying'] = False
             if 'time' in data: state['time'] = data['time']
+            # Always include the server's authoritative time in the broadcast.
+            broadcast_data['time'] = state['time']
         elif action_type == 'seek':
             if 'time' in data: state['time'] = data['time']
+            # The original 'data' is sufficient as 'seek' must include time.
         
         # Broadcast the host's action to all other clients in the room
-        emit('party_update', data, room=room, include_self=False)
+        emit('party_update', broadcast_data, room=room, include_self=False)
 
     # --- Queue management (anyone can do) ---
     elif action_type == 'add_to_queue':

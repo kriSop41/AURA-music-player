@@ -4,5 +4,5 @@ ytmusicapi
 flask-cors
 gunicorn
 flask-socketio
-eventlet
 google-auth
+eventlet
