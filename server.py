@@ -505,9 +505,18 @@ def on_party_action(data):
         traceback.print_exc()
 
 @socketio.on('get_party_state')
-def on_get_state():
+def on_get_state(data=None):
     room = sid_to_room.get(request.sid)
+    if not room and data and isinstance(data, dict):
+        room = data.get('room')
+
+    if room:
+        room = str(room).strip().lower()
+
     if room and room in party_rooms:
+        if request.sid not in sid_to_room:
+            sid_to_room[request.sid] = room
+            join_room(room)
         emit('party_state_update', party_rooms[room]['state'], room=request.sid)
 
 @socketio.on('party_chat')
