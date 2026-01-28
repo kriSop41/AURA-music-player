@@ -423,9 +423,20 @@ def on_party_action(data):
 
         # Update the server's authoritative state based on the host's action
         if action_type == 'play_song':
-            state['song'] = data.get('song')
+            song_data = data.get('song')
+            state['song'] = song_data
             state['time'] = 0
             state['isPlaying'] = True
+
+            # Announce the new song in chat as a system message
+            if song_data:
+                chat_message = {
+                    'isSystem': True,
+                    'msg': f"Now playing: {song_data.get('title', 'a new song')} by {song_data.get('artist', 'Unknown Artist')}",
+                    'room': room
+                }
+                socketio.emit('party_chat', chat_message, room=room)
+
             # The original 'data' is sufficient for this action.
         elif action_type == 'play':
             state['isPlaying'] = True
