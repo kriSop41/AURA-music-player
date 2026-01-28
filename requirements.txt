@@ -1,0 +1,8 @@
+Flask
+requests
+ytmusicapi
+flask-cors
+gunicorn
+flask-socketio
+google-auth
+eventlet
