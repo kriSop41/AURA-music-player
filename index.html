@@ -1317,7 +1317,6 @@
         function renderPlaylistItems(tracks) {
             const list = document.getElementById('playlist-songs');
             list.innerHTML = '';
-            
             const isCustom = JSON.parse(localStorage.getItem('playlists') || '{}')[currentPlaylistName] !== undefined;
             const isLiked = currentPlaylistName === "Liked Songs";
 
@@ -1326,13 +1325,34 @@
                 playFromQueue(0);
             };
 
+            let likedDraggedIndex = null;
+
             tracks.forEach((t, index) => {
                 const div = document.createElement('div');
                 div.className = 'track-item glass';
                 div.style.alignItems = 'center';
                 const delIndex = (t.originalIndex !== undefined) ? t.originalIndex : index;
+                let dragHandle = '';
+                if (isLiked) {
+                    dragHandle = `<span class="drag-handle" style="cursor:grab; margin-right:10px; opacity:0.7" title="Drag to reorder"><i data-lucide='grip-vertical'></i></span>`;
+                    div.draggable = true;
+                    div.ondragstart = (e) => { likedDraggedIndex = index; e.dataTransfer.effectAllowed = 'move'; };
+                    div.ondragover = (e) => { if (likedDraggedIndex !== null) e.preventDefault(); };
+                    div.ondrop = (e) => {
+                        e.preventDefault();
+                        if (likedDraggedIndex === null || likedDraggedIndex === index) return;
+                        const liked = [...tracks];
+                        const [item] = liked.splice(likedDraggedIndex, 1);
+                        liked.splice(index, 0, item);
+                        localStorage.setItem('likedSongs', JSON.stringify(liked));
+                        openLikedSongs();
+                        likedDraggedIndex = null;
+                    };
+                    div.ondragend = () => { likedDraggedIndex = null; };
+                }
                 div.innerHTML = `
                     ${(isCustom || isLiked) ? `<i data-lucide="trash" class="remove-btn" onclick="deleteFromPlaylist(event, '${currentPlaylistName}', ${delIndex})" style="width:16px; margin-right:10px"></i>` : ''}
+                    ${dragHandle}
                     <span style="font-size:14px; opacity:0.5; width:30px; text-align:center">${index + 1}</span>
                     <img src="${t.thumb}" width="40" style="border-radius:5px">
                     <div style="flex:1">

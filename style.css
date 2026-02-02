@@ -1,3 +1,13 @@
+/* Draggable handle for liked songs */
+.drag-handle {
+    cursor: grab;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+}
+.track-item[draggable="true"] {
+    cursor: grab;
+}
 :root { 
     --p: #3b82f6; 
     --glass: rgba(255, 255, 255, 0.05); 

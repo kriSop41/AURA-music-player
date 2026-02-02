@@ -538,5 +538,12 @@ def on_typing(data):
         emit('typing', data, room=room, include_self=False)
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 10000))
-    socketio.run(app, host='0.0.0.0', port=port)
+    try:
+        print("[DEBUG] Starting server...")
+        port = int(os.environ.get("PORT", 10000))
+        print(f"[DEBUG] Using port: {port}")
+        socketio.run(app, host='0.0.0.0', port=port)
+    except Exception as e:
+        print("[ERROR] Failed to start server:")
+        import traceback
+        traceback.print_exc()
