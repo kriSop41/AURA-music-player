@@ -445,6 +445,7 @@ def on_party_action(data):
                 state['time'] = 0
                 state['isPlaying'] = True
                 broadcast_data['time'] = 0
+                broadcast_data['isPlaying'] = True
                 socketio.emit('party_update', broadcast_data, room=room)
 
                 # Announce the new song in chat as a system message
@@ -459,12 +460,14 @@ def on_party_action(data):
             state['isPlaying'] = True
             if 'time' in data: state['time'] = data['time']
             broadcast_data['time'] = state['time']
+            broadcast_data['isPlaying'] = True
             socketio.emit('party_update', broadcast_data, room=room)
 
         elif action_type == 'pause':
             state['isPlaying'] = False
             if 'time' in data: state['time'] = data['time']
             broadcast_data['time'] = state['time']
+            broadcast_data['isPlaying'] = False
             socketio.emit('party_update', broadcast_data, room=room)
 
         elif action_type == 'seek':
