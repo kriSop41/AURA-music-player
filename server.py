@@ -436,11 +436,7 @@ def on_party_action(data):
 
         # --- Playback Controls ---
         # We allow 'play_song' for everyone (Collaborative Mode) so guests can change tracks.
-        # We restrict 'play', 'pause', 'seek' to Host to prevent fighting over the scrubber.
-        if action_type in ['play', 'pause', 'seek']:
-            if not is_host:
-                print(f"Blocked non-host action: {action_type}")
-                return # Ignore action from non-host
+        # We allow 'play', 'pause', 'seek' for everyone (Collaborative Mode).
 
         # Update the server's authoritative state based on the action
         if action_type == 'play_song':
