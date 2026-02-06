@@ -434,72 +434,64 @@ def on_party_action(data):
         broadcast_data = data.copy()
         broadcast_data['senderSid'] = request.sid
 
-        # --- Playback Controls ---
-        # We allow 'play_song' for everyone (Collaborative Mode) so guests can change tracks.
-        # We restrict 'play', 'pause', 'seek' to Host to prevent fighting over the scrubber.
-        if action_type in ['play', 'pause', 'seek']:
-            if not is_host:
-                print(f"Blocked non-host action: {action_type}")
-                return # Ignore action from non-host
+        # --- Playback & Queue Controls ---
+        # Any user can perform any action. The server is the source of truth.
+        # We allow 'play', 'pause', 'seek' for everyone (Collaborative Mode).
 
-        # Update the server's authoritative state based on the action
         if action_type == 'play_song':
-                song_data = data.get('song')
+            song_data = data.get('song')
+            if song_data:
                 state['song'] = song_data
                 state['time'] = 0
                 state['isPlaying'] = True
-                broadcast_data['time'] = 0 # Explicitly send time
+                broadcast_data['time'] = 0
+                broadcast_data['isPlaying'] = True
+                socketio.emit('party_update', broadcast_data, room=room)
 
                 # Announce the new song in chat as a system message
-                if song_data:
-                    chat_message = {
-                        'isSystem': True,
-                        'msg': f"Now playing: {song_data.get('title', 'a new song')} by {song_data.get('artist', 'Unknown Artist')}",
-                        'room': room
-                    }
-                    socketio.emit('party_chat', chat_message, room=room)
+                chat_message = {
+                    'isSystem': True,
+                    'msg': f"Now playing: {song_data.get('title', 'a new song')} by {song_data.get('artist', 'Unknown Artist')}",
+                    'room': room
+                }
+                socketio.emit('party_chat', chat_message, room=room)
 
         elif action_type == 'play':
-                state['isPlaying'] = True
-                if 'time' in data: state['time'] = data['time'] # Host's time is source of truth
-                # Always include the server's authoritative time in the broadcast.
-                broadcast_data['time'] = state['time']
-        elif action_type == 'pause':
-                state['isPlaying'] = False
-                if 'time' in data: state['time'] = data['time']
-                # Always include the server's authoritative time in the broadcast.
-                broadcast_data['time'] = state['time']
-        elif action_type == 'seek':
-                if 'time' in data: state['time'] = data['time']
-                # The original 'data' is sufficient as 'seek' must include time.
-            
-        # Broadcast the action to all other clients in the room
-        if action_type in ['play_song', 'play', 'pause', 'seek']:
-            print(f"Broadcasting {action_type} to room {room} | Payload: {broadcast_data}")
+            state['isPlaying'] = True
+            if 'time' in data: state['time'] = data['time']
+            broadcast_data['time'] = state['time']
+            broadcast_data['isPlaying'] = True
             socketio.emit('party_update', broadcast_data, room=room)
 
-        # --- Queue management (anyone can do) ---
+        elif action_type == 'pause':
+            state['isPlaying'] = False
+            if 'time' in data: state['time'] = data['time']
+            broadcast_data['time'] = state['time']
+            broadcast_data['isPlaying'] = False
+            socketio.emit('party_update', broadcast_data, room=room)
+
+        elif action_type == 'seek':
+            if 'time' in data: state['time'] = data['time']
+            # The broadcast_data already contains the time from the original 'data'
+            socketio.emit('party_update', broadcast_data, room=room)
+
         elif action_type == 'add_to_queue':
             song_to_add = data.get('song')
             if song_to_add and song_to_add.get('id') not in [s['id'] for s in state['queue']]:
                 state['queue'].append(song_to_add)
-                # Broadcast the "add" action so all clients can update their queue UI
-                data['senderSid'] = request.sid
-                socketio.emit('party_update', data, room=room)
+                socketio.emit('party_update', broadcast_data, room=room)
         
         elif action_type == 'remove_from_queue':
             song_id_to_remove = data.get('songId')
             if song_id_to_remove:
                 state['queue'] = [s for s in state['queue'] if s['id'] != song_id_to_remove]
-                data['senderSid'] = request.sid
-                socketio.emit('party_update', data, room=room)
+                socketio.emit('party_update', broadcast_data, room=room)
 
-        elif action_type == 'update_queue': # For drag-and-drop reordering
+        elif action_type == 'update_queue':
             new_queue = data.get('queue')
             if isinstance(new_queue, list):
                 state['queue'] = new_queue
-                data['senderSid'] = request.sid
-                socketio.emit('party_update', data, room=room)
+                socketio.emit('party_update', broadcast_data, room=room)
     except Exception as e:
         print(f"Error in on_party_action: {e}")
         traceback.print_exc()
